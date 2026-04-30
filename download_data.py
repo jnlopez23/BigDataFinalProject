@@ -5,9 +5,15 @@ import shutil
 
 # kaggle datasets
 datasets = [
-    "sohumgokhale/multi-platform-social-sentiment-evolution",
+    # 2024 (Current)
     "imaadmahmood/us-election-2024-social-media-sentiment-dataset",
-    "programmer3/political-tweets-and-social-reactions"
+
+    # 2021-2023 (The Gap Years)
+    "thedevastator/analyzing-the-political-discourse-of-reddit-s-su",
+    # 2020 (Historical Baseline)
+    "manchunhui/us-election-2020-tweets",
+    "noorsaeed/usa-election-sentiment-analysis-dataset",
+    "yewleewong/trump-related-tweets-us-election-day-2020"
 ]
 
 target_folder = "./raw_data"
