@@ -3,22 +3,32 @@ import pandas as pd
 import os
 import shutil
 
-# 1. Download the latest version of the dataset
-# This downloads it to a "cache" folder on your Mac
-path = kagglehub.dataset_download("imaadmahmood/us-election-2024-social-media-sentiment-dataset")
-print("Downloaded to cache at:", path)
+# kaggle datasets
+datasets = [
+    "sohumgokhale/multi-platform-social-sentiment-evolution",
+    "imaadmahmood/us-election-2024-social-media-sentiment-dataset",
+    "programmer3/political-tweets-and-social-reactions"
+]
 
-# 2. Look at the files inside that folder
-files = os.listdir(path)
-print("Files found in download:", files)
+target_folder = "./raw_data"
+if not os.path.exists(target_folder):
+    os.makedirs(target_folder)
+    print(f"Created folder: {target_folder}")
 
-# 3. Move the CSV from the cache to your current Project folder
-# We'll look for any file ending in .csv and copy it here
-for file in files:
-    if file.endswith(".csv"):
-        shutil.copy(os.path.join(path, file), f"./{file}")
-        print(f"Successfully moved {file} to your project folder!")
+for dataset in datasets:
+    print(f"\n--- Fetching: {dataset} ---")
+    
+    path = kagglehub.dataset_download(dataset)
+    
+    # Find all CSV files and move them
+    files = os.listdir(path)
+    for file in files:
+        if file.endswith(".csv"):
+            source_path = os.path.join(path, file)
+            # We add the dataset creator's name to the filename 
+            # so they don't overwrite each other if they have the same name!
+            new_name = f"{dataset.split('/')[0]}_{file}"
+            shutil.copy(source_path, os.path.join(target_folder, new_name))
+            print(f"✅ Saved to {target_folder}/{new_name}")
 
-# 4. Optional: Load it to make sure it works
-# df = pd.read_csv("sentiment_dataset.csv") # Use the actual filename here
-# print(df.head())
+print("\nDone! All datasets are in your 'raw_data' folder.")
