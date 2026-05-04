@@ -1,4 +1,6 @@
 Run python download_data.py to download raw kaggle csv data.
+Includes data from 2020 & 2024
+
 Datasets used: 
 - US Election 2024 Social Media Sentiment Dataset (https://www.kaggle.com/datasets/imaadmahmood/us-election-2024-social-media-sentiment-dataset?select=election_tweets.csv)
 
