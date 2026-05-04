@@ -19,22 +19,17 @@ datasets = [
 target_folder = "./raw_data"
 if not os.path.exists(target_folder):
     os.makedirs(target_folder)
-    print(f"Created folder: {target_folder}")
 
 for dataset in datasets:
-    print(f"\n--- Fetching: {dataset} ---")
+    print(f"\n fetch {dataset} ---")
     
     path = kagglehub.dataset_download(dataset)
     
-    # Find all CSV files and move them
     files = os.listdir(path)
     for file in files:
         if file.endswith(".csv"):
             source_path = os.path.join(path, file)
-            # We add the dataset creator's name to the filename 
-            # so they don't overwrite each other if they have the same name!
             new_name = f"{dataset.split('/')[0]}_{file}"
             shutil.copy(source_path, os.path.join(target_folder, new_name))
-            print(f"✅ Saved to {target_folder}/{new_name}")
 
-print("\nDone! All datasets are in your 'raw_data' folder.")
+print("\n datasets in raw_data folder")
