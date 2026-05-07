@@ -1,5 +1,7 @@
 Run python download_data.py to download raw kaggle csv data.
-Includes data from 2020 & 2024
+Includes data from 2020 & 2024.
+
+Run python clean_data.py to clean the data into 3 files, one for biden-specific tweets, one for trump-specific tweets,a nd one for combined.
 
 Datasets used: 
 - US Election 2024 Social Media Sentiment Dataset (https://www.kaggle.com/datasets/imaadmahmood/us-election-2024-social-media-sentiment-dataset?select=election_tweets.csv)
