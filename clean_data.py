@@ -1,22 +1,30 @@
 import pandas as pd
 import os
+                                                   
 
-def clean_data(file_path):
-    print(f" for {file_path}")
-    
-    df = pd.read_csv(file_path)
-    
-    df.dropna(inplace=True) 
-    df.drop_duplicates(inplace=True) 
-    
-    cleaned_file_path = file_path.replace("raw_data", "cleaned_data")
-    os.makedirs(os.path.dirname(cleaned_file_path), exist_ok=True)
-    df.to_csv(cleaned_file_path, index=False)
-    
-    print(f" saved {cleaned_file_path}")
+# 1. Load the dataset
+manchunhui_trump_tweets_df = pd.read_csv("./raw_data/manchunhui_hashtag_donaldtrump.csv", lineterminator='\n')
 
-if __name__ == "__main__":
-    raw_folder = "./raw_data"
-    for file in os.listdir(raw_folder):
-        if file.endswith(".csv"):
-            clean_data(os.path.join(raw_folder, file))
+manchunhui_biden_tweets_df = pd.read_csv("./raw_data/manchunhui_hashtag_joebiden.csv", lineterminator='\n')
+
+# 2. Keep only the requested columns
+trump_df_cleaned = manchunhui_trump_tweets_df[['created_at', 'tweet', 'state']]
+biden_df_cleaned = manchunhui_biden_tweets_df[['created_at', 'tweet', 'state']]
+
+# 3. Optional: Remove rows where 'state' is empty (NaN)
+trump_df_cleaned = trump_df_cleaned.dropna(subset=['state'])
+biden_df_cleaned = biden_df_cleaned.dropna(subset=['state'])
+
+target_folder = "./cleaned_data"
+if not os.path.exists(target_folder):
+    os.makedirs(target_folder)
+
+# save to cleaned_data folder
+trump_df_cleaned.to_csv(os.path.join(target_folder, 'trump_cleaned_data.csv'), index=False)
+biden_df_cleaned.to_csv(os.path.join(target_folder, 'biden_cleaned_data.csv'), index=False)
+
+# combine into a new csv file
+combined_df = pd.concat([trump_df_cleaned, biden_df_cleaned], ignore_index=True)
+combined_df.to_csv(os.path.join(target_folder, 'combined_cleaned_data.csv'), index=False)
+
+print("\n cleaned data saved to cleaned_data folder")
