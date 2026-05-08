@@ -2,16 +2,15 @@ import pandas as pd
 import os
                                                    
 
-# 1. Load the dataset
+# loa datasets
 manchunhui_trump_tweets_df = pd.read_csv("./raw_data/manchunhui_hashtag_donaldtrump.csv", lineterminator='\n')
 
 manchunhui_biden_tweets_df = pd.read_csv("./raw_data/manchunhui_hashtag_joebiden.csv", lineterminator='\n')
 
-# 2. Keep only the requested columns
+# only keep relevant columns
 trump_df_cleaned = manchunhui_trump_tweets_df[['created_at', 'tweet', 'state']]
 biden_df_cleaned = manchunhui_biden_tweets_df[['created_at', 'tweet', 'state']]
 
-# 3. Optional: Remove rows where 'state' is empty (NaN)
 trump_df_cleaned = trump_df_cleaned.dropna(subset=['state'])
 biden_df_cleaned = biden_df_cleaned.dropna(subset=['state'])
 
