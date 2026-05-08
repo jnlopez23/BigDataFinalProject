@@ -1,34 +1,55 @@
-from deep_translator import GoogleTranslator
-from langdetect import detect, DetectorFactory
+# 1. Install necessary libraries in Colab
+!pip install transformers scipy torch
+
 import os
+
 import pandas as pd
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from scipy.special import softmax
+import torch
 
-# seed for language detection 
-DetectorFactory.seed = 0
+# 2. Setup Model and GPU
+MODEL = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL)
 
-def translate_if_needed(text):
-    '''
-    Detects language and translates to English if not already in English.
-    If detection fails (e.g. only emojis), returns original text.
-    '''
-    if not text or len(text) < 3:
-        return text
+# Move model to GPU
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
+
+def get_multilingual_sentiment(text):
+    """Returns a score between -1 (Negative) and 1 (Positive)"""
+    if not text or len(str(text)) < 5:
+        return 0
+    
     try:
-        lang = detect(text)
-        if lang != 'en':
-            # translate to English
-            return GoogleTranslator(source='auto', target='en').translate(text)
+        # Preprocess and tokenize
+        encoded_input = tokenizer(text, return_tensors='pt', truncation=True, max_length=512).to(device)
+        
+        # Get model output
+        with torch.no_grad():
+            output = model(**encoded_input)
+        
+        # Convert output to probabilities
+        scores = output[0][0].detach().cpu().numpy()
+        scores = softmax(scores)
+        
+        # XLM-T output is: [Negative, Neutral, Positive]
+        # Calculate a weighted compound score
+        ranking = scores[2] - scores[0] # (Positive - Negative)
+        return ranking
     except:
-        pass
-    return text
+        return 0
 
 
-target_folder = "./processed_data"
+
 
 def process_file(file_path, output_name):
+    target_folder = "./processed_data"
+    
     df = pd.read_csv(file_path, lineterminator='\n')
         
-    df['tweet'] = df['tweet'].apply(translate_if_needed)
+    df['tweet'] = df['tweet'].apply(get_multilingual_sentiment)
     
     df.to_csv(os.path.join(target_folder, output_name), index=False)
     print(f"saved to {output_name}")
