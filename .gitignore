@@ -2,3 +2,4 @@ raw_data/
 cleaned_data/
 processed_data/
 .env
+data/processed
