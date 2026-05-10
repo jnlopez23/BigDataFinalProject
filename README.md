@@ -1,7 +1,5 @@
 # Big Data Final Project
 
-Analysis of associations between **CPS voter registration** (survey-based) and **social media** volume/sentiment at the state level. **Turnout is not modeled** in the main pipeline.
-
 ---
 
 ## Environment setup
@@ -21,7 +19,7 @@ Optional (Kaggle translation notebook / co-occurrence inputs): **`torch`**, **`t
 
 ### Voter registration (IPUMS CPS)
 
-1. Place `abrv_voter_reg.dat` at `data/raw/voter_registration/abrv_voter_reg.dat`
+1. Place `abrv_voter_reg.dat` (Tiffany has this data)
 2. Run:
 
 ```bash
@@ -66,10 +64,6 @@ These two datasets are merged using an inner join on (state, year), resulting in
 `data/processed/analysis/merged_state_year.csv`
 
 Because tweet coverage does not perfectly align with all CPS survey years, the final merged dataset is typically limited to overlapping years (often primarily 2020 depending on tweet availability).
-
-Supporting intermediate outputs:
-- `voter_state_year.csv`
-- `social_state_year.csv`
 
 ---
 

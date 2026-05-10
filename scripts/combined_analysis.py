@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
@@ -28,6 +29,8 @@ BIDEN_PATH = PROJECT_ROOT / "data/processed/social_media/biden_preprocessed.csv"
 TRUMP_PATH = PROJECT_ROOT / "data/processed/social_media/trump_preprocessed.csv"
 OUTPUT_DATA_DIR = PROJECT_ROOT / "data/processed/analysis"
 OUTPUT_FIG_DIR = PROJECT_ROOT / "reports/figures/combined_analysis"
+CLUSTER_FEATURES = ("tweet_volume", "mean_sentiment")
+K_PCA_SWEEP_MAX = 5
 
 
 def _padded_xlim_years(years) -> tuple[float, float]:
@@ -191,25 +194,37 @@ def save_descriptive_plots(
 
 def add_social_kmeans_clusters(
     merged: pd.DataFrame, n_clusters: int = 3
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     """
     Cluster state-year rows on standardized tweet_volume and mean_sentiment.
     Rows with missing features get NaN cluster id. k is reduced if sample is small.
+    Adds PC1, PC2 from PCA on the same scaled features for visualization.
     """
     out = merged.copy()
-    mask = out[["tweet_volume", "mean_sentiment"]].notna().all(axis=1)
+    mask = out[list(CLUSTER_FEATURES)].notna().all(axis=1)
     out["social_cluster"] = pd.NA
+    out["PC1"] = np.nan
+    out["PC2"] = np.nan
 
     n_valid = int(mask.sum())
     if n_valid < 2:
-        return out
+        return out, None
 
     k = min(n_clusters, n_valid)
-    features = out.loc[mask, ["tweet_volume", "mean_sentiment"]].values
+    features = out.loc[mask, list(CLUSTER_FEATURES)].values
     scaled = StandardScaler().fit_transform(features)
+    pca = PCA(n_components=2)
+    pca_xy = pca.fit_transform(scaled)
+    out.loc[mask, "PC1"] = pca_xy[:, 0]
+    out.loc[mask, "PC2"] = pca_xy[:, 1]
     labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(scaled)
     out.loc[mask, "social_cluster"] = labels.astype(int)
-    return out
+    loadings = pd.DataFrame(
+        pca.components_,
+        columns=list(CLUSTER_FEATURES),
+        index=["PC1", "PC2"],
+    )
+    return out, loadings
 
 
 def save_cluster_plots(labeled: pd.DataFrame) -> None:
@@ -293,6 +308,54 @@ def save_cluster_plots(labeled: pd.DataFrame) -> None:
     plt.close()
 
 
+def save_cluster_pca_plots(labeled: pd.DataFrame, k_sweep_max: int = K_PCA_SWEEP_MAX) -> None:
+    """PCA scatter of social features, colored by pipeline clusters; sweep k up to k_sweep_max."""
+    sns.set_theme(style="whitegrid")
+    mask = labeled[list(CLUSTER_FEATURES)].notna().all(axis=1) & labeled["social_cluster"].notna()
+    sub = labeled.loc[mask]
+    if sub.empty:
+        return
+
+    pc1 = sub["PC1"].to_numpy(dtype=float)
+    pc2 = sub["PC2"].to_numpy(dtype=float)
+    cluster_ids = sub["social_cluster"].astype(int).to_numpy()
+    n = len(sub)
+
+    plt.figure(figsize=(6, 5))
+    sc = plt.scatter(pc1, pc2, c=cluster_ids, cmap="plasma", alpha=0.6, edgecolors="none")
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("Principal Component 2")
+    plt.title("K-Means clusters visualized by PCA (pipeline k)")
+    plt.colorbar(sc, label="Cluster")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(OUTPUT_FIG_DIR / "cluster_pca_pipeline.png", dpi=150)
+    plt.close()
+
+    X = sub[list(CLUSTER_FEATURES)].values
+    scaled = StandardScaler().fit_transform(X)
+    k_hi = min(k_sweep_max, n)
+    for k in range(1, k_hi + 1):
+        plt.figure(figsize=(6, 5))
+        labels_k = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(scaled)
+        scatter = plt.scatter(
+            pc1,
+            pc2,
+            c=labels_k,
+            cmap="tab10",
+            alpha=0.7,
+            edgecolors="none",
+        )
+        plt.title(f"PCA visualization of K-Means clusters (k = {k})", fontsize=14)
+        plt.xlabel("Principal Component 1 (PC1)", fontsize=12)
+        plt.ylabel("Principal Component 2 (PC2)", fontsize=12)
+        plt.colorbar(scatter, label="Cluster label")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(OUTPUT_FIG_DIR / f"cluster_pca_k{k}.png", dpi=150)
+        plt.close()
+
+
 def run_simple_registration_model(merged: pd.DataFrame) -> pd.DataFrame:
     """Exploratory: registration_rate ~ tweet_volume + mean_sentiment."""
     model_df = merged.dropna(subset=["tweet_volume", "mean_sentiment", "registration_rate"]).copy()
@@ -329,9 +392,10 @@ def main() -> None:
     spearman_corr = merged[corr_cols].corr(method="spearman")
 
     model_results = run_simple_registration_model(merged)
-    labeled = add_social_kmeans_clusters(merged, n_clusters=3)
+    labeled, pca_loadings = add_social_kmeans_clusters(merged, n_clusters=3)
     save_descriptive_plots(voter_state_year, social_state_year, merged)
     save_cluster_plots(labeled)
+    save_cluster_pca_plots(labeled)
 
     voter_state_year.to_csv(OUTPUT_DATA_DIR / "voter_state_year.csv", index=False)
     social_state_year.to_csv(OUTPUT_DATA_DIR / "social_state_year.csv", index=False)
@@ -340,6 +404,8 @@ def main() -> None:
     pearson_corr.to_csv(OUTPUT_DATA_DIR / "correlation_pearson.csv")
     spearman_corr.to_csv(OUTPUT_DATA_DIR / "correlation_spearman.csv")
     model_results.to_csv(OUTPUT_DATA_DIR / "linear_model_registration_results.csv", index=False)
+    if pca_loadings is not None:
+        pca_loadings.to_csv(OUTPUT_DATA_DIR / "cluster_pca_loadings.csv")
 
     print("Saved analysis datasets and figures:")
     print(f"- {OUTPUT_DATA_DIR / 'voter_state_year.csv'}")
@@ -354,6 +420,11 @@ def main() -> None:
     print(f"- {OUTPUT_FIG_DIR / 'mean_sentiment_vs_registration_rate.png'}")
     print(f"- {OUTPUT_FIG_DIR / 'cluster_sizes.png'}")
     print(f"- {OUTPUT_FIG_DIR / 'registration_rate_by_cluster.png'}")
+    print(f"- {OUTPUT_FIG_DIR / 'cluster_pca_pipeline.png'}")
+    print(
+        f"- {OUTPUT_FIG_DIR / 'cluster_pca_k1.png'} … "
+        f"{OUTPUT_FIG_DIR / f'cluster_pca_k{K_PCA_SWEEP_MAX}.png'} (k sweep 1–{K_PCA_SWEEP_MAX})"
+    )
     print(f"Merged rows: {len(merged):,}")
 
 
