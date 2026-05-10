@@ -1,7 +1,5 @@
 # Big Data Final Project
 
-Analysis of associations between **CPS voter registration** (survey-based) and **social media** volume/sentiment at the state level. **Turnout is not modeled** in the main pipeline.
-
 ---
 
 ## Environment setup
@@ -21,7 +19,7 @@ Optional (Kaggle translation notebook / co-occurrence inputs): **`torch`**, **`t
 
 ### Voter registration (IPUMS CPS)
 
-1. Place `abrv_voter_reg.dat` at `data/raw/voter_registration/abrv_voter_reg.dat`
+1. Place `abrv_voter_reg.dat` (Tiffany has this data)
 2. Run:
 
 ```bash
@@ -67,16 +65,12 @@ These two datasets are merged using an inner join on (state, year), resulting in
 
 Because tweet coverage does not perfectly align with all CPS survey years, the final merged dataset is typically limited to overlapping years (often primarily 2020 depending on tweet availability).
 
-Supporting intermediate outputs:
-- `voter_state_year.csv`
-- `social_state_year.csv`
-
 ---
 
 ## 2. Descriptive figures (`reports/figures/combined_analysis/`)
 
-- `registration_rate_by_year.png`: average voter registration across CPS survey years (full voter dataset)
-- `mean_sentiment_by_year.png`: average tweet sentiment over time
+- `registration_rate_by_year.png`: two line series with markers — (1) mean registration across all CPS state-years by survey year, (2) mean registration for **merged** state-years only (inner join with tweets). X-axis uses extra margin so years are not flush to the edges.
+- `mean_sentiment_by_year.png`: line chart with point markers — mean tweet sentiment by calendar year; wider figure and padded x-axis like the registration time plot.
 - `mean_sentiment_vs_registration_rate.png`: relationship between sentiment and registration at the state-year level
 
 There is no turnout visualization since turnout variables were removed.
