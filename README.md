@@ -23,7 +23,8 @@ From the project root, use a virtual environment and install:
 pip install pandas matplotlib seaborn scikit-learn kagglehub vaderSentiment deep-translator langdetect
 ```
 
-Optional: `statsmodels` if you extend the notebook (`pip install statsmodels`).
+Optional: **`statsmodels`** for `multiple_linreg.ipynb`.  
+Optional (Kaggle translation notebook / co-occurrence inputs): **`torch`**, **`transformers`**, **`tqdm`**, **`scipy`**.
 
 ---
 
@@ -101,10 +102,34 @@ This is **distinct** from **`multiple_linreg.ipynb`**, which uses **statsmodels 
 
 ---
 
-## Notebooks (exploration & alternate specification)
+## Notebook summaries
 
-- **`notebooks/multiple_linreg.ipynb`** — state-level merge, 2020 CPS filter, candidate-specific social features, OLS, diagnostic plots (e.g. actual vs predicted, sentiment coefficient bars). **Titles in some cells may still say “turnout”; axes use registration where noted.**
-- **`notebooks/cooccurence_network.ipynb`**, **`notebooks/Kaggle_translation.ipynb`** — network / translation workflows; separate from the merged state–year script.
+Paths inside notebooks may say `translated_data/` or `data/processed/voter_reg_individual_response_subset.csv` — if you run locally from the **project root**, point them at your actual outputs (e.g. `data/translated/social_media/`, `data/processed/voter_reg/voter_reg_individual_response_subset.csv`).
+
+### `notebooks/cooccurence_network.ipynb` (keyword co-occurrence networks)
+
+- Loads **translated** Biden and Trump tweet CSVs, filters to a fixed **US state** list, concatenates for a combined view.
+- Scans tweet text for a **political keyword list** (`vote`, `biden`, `trump`, `climate`, etc.) and builds **co-occurrence pairs** of keywords that appear in the same tweet.
+- Keeps edges where a pair appears more than a **frequency threshold** (default: more than 5 co-occurrences); edge **weight** ≈ count, edge **color** encodes **average `sentiment_score`** on those tweets.
+- Uses **NetworkX** (`spring_layout`, degree-based node sizes) and **Matplotlib** to draw **three** networks: Biden-only, Trump-only, and **combined**.
+- Prints top edges (keyword pair, frequency, sentiment label). Suited for a **complex-networks** framing of “which themes co-occur together and with what tone,” separate from the CPS merge in `combined_analysis.py`.
+
+### `notebooks/Kaggle_translation.ipynb` (multilingual sentiment scoring on Kaggle)
+
+- Intended to run on **Kaggle** (`kaggle_secrets` for a Hugging Face token; GPU if available).
+- Loads **`cardiffnlp/twitter-xlm-roberta-base-sentiment`** (`transformers` + `torch`), runs **forward passes** on tweet text, converts logits to a **single score** (positive softmax minus negative softmax, scaled roughly between −1 and +1).
+- Reads preprocessed Trump/Biden CSV paths from **Kaggle input**, writes **`trump_translated.csv`** and **`biden_translated.csv`** to **`/kaggle/working/`** with a new **`sentiment_score`** column.
+- Offline / local workflows can instead use **`scripts/`** preprocessing and **`combined_analysis.py`** (VADER) or replicate this notebook with adjusted paths.
+
+### `notebooks/multiple_linreg.ipynb` (state-level multiple regression)
+
+- Imports translated Biden/Trump data and CPS voter subset; restricts voters to **`year == 2020`** for alignment with typical tweet windows.
+- Builds **`registration_pct_by_demo`**: CPS **registration indicator** (0/1) aggregated to **registration rate %** by `state`, `race_label`, `gender` (registration only—not turnout).
+- Aggregates tweets to **state** level: Biden volume, Trump volume, and **mean absolute** `sentiment_score` per side (`biden_sent`, `trump_sent`).
+- Merges social + CPS on **`state`** only (`inner`) → **`final_regression_df`** with `actual_reg_rate` (often scaled to percent).
+- Fits **statsmodels OLS**: `actual_reg_rate ~ const + biden_vol + biden_sent + trump_vol + trump_sent`.
+- Visualization cells: **actual vs predicted** scatter with 45° line; **horizontal bar chart** of sentiment-related coefficients ± standard errors; **Seaborn `regplot`** (e.g. Trump sentiment vs registration) with **state labels**; **heatmap** (state × trump sentiment vs registration, min–max scaled for color).
+- **Note:** Some plot **titles still say “turnout”** or “youth registration” while the dependent variable is **CPS registration rate**—treat titles as legacy wording.
 
 ---
 
