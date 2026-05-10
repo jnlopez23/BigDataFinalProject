@@ -13,6 +13,7 @@ appear only where both voter aggregates and tweets exist.
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.cluster import KMeans
@@ -27,6 +28,18 @@ BIDEN_PATH = PROJECT_ROOT / "data/processed/social_media/biden_preprocessed.csv"
 TRUMP_PATH = PROJECT_ROOT / "data/processed/social_media/trump_preprocessed.csv"
 OUTPUT_DATA_DIR = PROJECT_ROOT / "data/processed/analysis"
 OUTPUT_FIG_DIR = PROJECT_ROOT / "reports/figures/combined_analysis"
+
+
+def _padded_xlim_years(years) -> tuple[float, float]:
+    """Widen x-axis so end years are not flush against the plot edge."""
+    arr = np.unique(np.asarray(years, dtype=float))
+    arr = arr[~np.isnan(arr)]
+    if len(arr) == 0:
+        return 0.0, 1.0
+    lo, hi = float(arr.min()), float(arr.max())
+    span = hi - lo if hi > lo else 1.0
+    pad = max(span * 0.14, 0.65)
+    return lo - pad, hi + pad
 
 
 def build_voter_state_year() -> pd.DataFrame:
@@ -79,24 +92,83 @@ def save_descriptive_plots(
 ) -> None:
     sns.set_theme(style="whitegrid")
 
-    yearly_voter = voter_state_year.groupby("year", as_index=False)["registration_rate"].mean()
+    yearly_voter = (
+        voter_state_year.groupby("year", as_index=False)["registration_rate"]
+        .mean()
+        .sort_values("year")
+    )
+    yearly_merged_reg = (
+        merged.groupby("year", as_index=False)["registration_rate"]
+        .mean()
+        .sort_values("year")
+    )
 
-    plt.figure(figsize=(7, 4))
-    sns.barplot(data=yearly_voter, x="year", y="registration_rate", color="#4C72B0")
-    plt.title("Mean registration rate by year (CPS subset, all states)")
-    plt.ylabel("Registration rate")
+    plt.figure(figsize=(8.5, 4))
+    plt.plot(
+        yearly_voter["year"],
+        yearly_voter["registration_rate"],
+        color="#4C72B0",
+        linewidth=2,
+        marker="o",
+        markersize=9,
+        markeredgecolor="white",
+        markeredgewidth=1,
+        label="All CPS state-years",
+    )
+    if not yearly_merged_reg.empty:
+        plt.plot(
+            yearly_merged_reg["year"],
+            yearly_merged_reg["registration_rate"],
+            color="#e74c3c",
+            linewidth=2,
+            marker="s",
+            markersize=8,
+            markeredgecolor="white",
+            markeredgewidth=1,
+            label="Merged with tweets (inner join)",
+        )
+    reg_years = (
+        pd.concat([yearly_voter["year"], yearly_merged_reg["year"]], ignore_index=True)
+        if not yearly_merged_reg.empty
+        else yearly_voter["year"]
+    )
+    x_lo, x_hi = _padded_xlim_years(reg_years)
+    plt.xlim(x_lo, x_hi)
+    year_ticks = sorted(pd.unique(reg_years.astype(int)))
+    plt.xticks(year_ticks)
+    plt.title("Mean Registration Rate by Year")
+    plt.ylabel("Registration Rate")
     plt.xlabel("Year")
+    plt.legend(loc="best", framealpha=0.95)
+    plt.grid(True, linestyle=":", alpha=0.6)
     plt.tight_layout()
     plt.savefig(OUTPUT_FIG_DIR / "registration_rate_by_year.png", dpi=150)
     plt.close()
 
-    yearly_social = social_state_year.groupby("year", as_index=False)["mean_sentiment"].mean()
+    yearly_social = (
+        social_state_year.groupby("year", as_index=False)["mean_sentiment"]
+        .mean()
+        .sort_values("year")
+    )
 
-    plt.figure(figsize=(7, 4))
-    sns.barplot(data=yearly_social, x="year", y="mean_sentiment", color="#55A868")
-    plt.title("Mean VADER sentiment by year (combined tweet files)")
-    plt.ylabel("Mean compound sentiment")
+    plt.figure(figsize=(8.5, 4))
+    sy = yearly_social["year"].astype(int).to_numpy()
+    sm = yearly_social["mean_sentiment"].to_numpy(dtype=float)
+    plt.bar(
+        sy,
+        sm,
+        width=0.65,
+        color="#55A868",
+        edgecolor="white",
+        linewidth=1,
+    )
+    sx_lo, sx_hi = _padded_xlim_years(yearly_social["year"])
+    plt.xlim(sx_lo, sx_hi)
+    plt.xticks(sorted(yearly_social["year"].astype(int).unique()))
+    plt.title("Mean VADER Sentiment by Year (Combined Tweet Files)")
+    plt.ylabel("Mean Compound Sentiment")
     plt.xlabel("Year")
+    plt.grid(True, linestyle=":", alpha=0.6)
     plt.tight_layout()
     plt.savefig(OUTPUT_FIG_DIR / "mean_sentiment_by_year.png", dpi=150)
     plt.close()
@@ -109,9 +181,9 @@ def save_descriptive_plots(
         scatter_kws={"alpha": 0.7},
         line_kws={"color": "red"},
     )
-    plt.title("Mean sentiment vs registration (merged state-year)")
-    plt.xlabel("Mean compound sentiment")
-    plt.ylabel("Registration rate")
+    plt.title("Mean Sentiment vs Registration (Merged State-year)")
+    plt.xlabel("Mean Compound Sentiment")
+    plt.ylabel("Registration Rate")
     plt.tight_layout()
     plt.savefig(OUTPUT_FIG_DIR / "mean_sentiment_vs_registration_rate.png", dpi=150)
     plt.close()
@@ -141,18 +213,39 @@ def add_social_kmeans_clusters(
 
 
 def save_cluster_plots(labeled: pd.DataFrame) -> None:
-    """Cluster size bar chart and mean registration rate by cluster."""
+    """Cluster sizes and mean registration by cluster: line+markers if 2+ clusters, else bar."""
     sns.set_theme(style="whitegrid")
     valid = labeled.dropna(subset=["social_cluster"]).copy()
     if valid.empty:
         return
 
     counts = valid["social_cluster"].value_counts().sort_index()
+    c_ids = counts.index.astype(int).to_numpy()
+    c_vals = counts.values.astype(float)
+
     plt.figure(figsize=(7, 4))
-    sns.barplot(x=counts.index.astype(int), y=counts.values, color="#9b59b6")
+    if len(c_ids) == 1:
+        plt.bar([int(c_ids[0])], [c_vals[0]], width=0.45, color="#9b59b6", edgecolor="white", linewidth=1)
+        plt.xticks([int(c_ids[0])])
+    else:
+        plt.plot(
+            c_ids,
+            c_vals,
+            color="#9b59b6",
+            linewidth=2,
+            marker="o",
+            markersize=9,
+            markeredgecolor="white",
+            markeredgewidth=1,
+        )
+        plt.xticks(c_ids)
+        x_lo, x_hi = float(c_ids.min()), float(c_ids.max())
+        span = max(x_hi - x_lo, 1.0)
+        plt.margins(x=max(0.08 * span, 0.25))
     plt.xlabel("Cluster ID")
     plt.ylabel("Number of state-year rows")
     plt.title("K-means clusters (features: tweet volume, mean sentiment)")
+    plt.grid(True, linestyle=":", alpha=0.6)
     plt.tight_layout()
     plt.savefig(OUTPUT_FIG_DIR / "cluster_sizes.png", dpi=150)
     plt.close()
@@ -160,17 +253,41 @@ def save_cluster_plots(labeled: pd.DataFrame) -> None:
     by_cluster = (
         valid.groupby("social_cluster", as_index=False)
         .agg(mean_registration=("registration_rate", "mean"))
+        .sort_values("social_cluster")
     )
+    bc_ids = by_cluster["social_cluster"].astype(int).to_numpy()
+    bc_vals = by_cluster["mean_registration"].to_numpy(dtype=float)
+
     plt.figure(figsize=(7, 4))
-    sns.barplot(
-        data=by_cluster,
-        x="social_cluster",
-        y="mean_registration",
-        color="#34495e",
-    )
+    if len(bc_ids) == 1:
+        plt.bar(
+            [int(bc_ids[0])],
+            [bc_vals[0]],
+            width=0.45,
+            color="#34495e",
+            edgecolor="white",
+            linewidth=1,
+        )
+        plt.xticks([int(bc_ids[0])])
+    else:
+        plt.plot(
+            bc_ids,
+            bc_vals,
+            color="#34495e",
+            linewidth=2,
+            marker="o",
+            markersize=9,
+            markeredgecolor="white",
+            markeredgewidth=1,
+        )
+        plt.xticks(bc_ids)
+        x_lo, x_hi = float(bc_ids.min()), float(bc_ids.max())
+        span = max(x_hi - x_lo, 1.0)
+        plt.margins(x=max(0.08 * span, 0.25))
     plt.xlabel("Cluster ID")
-    plt.ylabel("Mean registration rate")
-    plt.title("Mean CPS registration rate by social-media cluster")
+    plt.ylabel("Mean Registration Rate")
+    plt.title("Mean CPS Registration Rate by Social Media Cluster")
+    plt.grid(True, linestyle=":", alpha=0.6)
     plt.tight_layout()
     plt.savefig(OUTPUT_FIG_DIR / "registration_rate_by_cluster.png", dpi=150)
     plt.close()

@@ -75,8 +75,8 @@ Supporting intermediate outputs:
 
 ## 2. Descriptive figures (`reports/figures/combined_analysis/`)
 
-- `registration_rate_by_year.png`: average voter registration across CPS survey years (full voter dataset)
-- `mean_sentiment_by_year.png`: average tweet sentiment over time
+- `registration_rate_by_year.png`: two line series with markers — (1) mean registration across all CPS state-years by survey year, (2) mean registration for **merged** state-years only (inner join with tweets). X-axis uses extra margin so years are not flush to the edges.
+- `mean_sentiment_by_year.png`: line chart with point markers — mean tweet sentiment by calendar year; wider figure and padded x-axis like the registration time plot.
 - `mean_sentiment_vs_registration_rate.png`: relationship between sentiment and registration at the state-year level
 
 There is no turnout visualization since turnout variables were removed.
