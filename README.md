@@ -1,3 +1,7 @@
+## Data Setup
+1. Download abrv_voter_reg.dat from IPUMS (sent via email)
+2. Place it in /data/files/
+3. Run python voter_reg.py
 
 1. Run python download_data.py to download raw kaggle csv data. Includes data from 2020 & 2024.
 2. Run python clean_data.py to clean the data into 3 files, one for biden-specific tweets, one for trump-specific tweets, and one for combined.
