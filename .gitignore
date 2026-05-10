@@ -1,1 +1,5 @@
-data/abrv_voter_reg.dat
+raw_data/
+cleaned_data/
+processed_data/
+.env
+data/processed
