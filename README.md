@@ -1,35 +1,47 @@
 # Big Data Final Project
 
-This project analyzes potential relationships between U.S. voter behavior and social media activity.
+Analysis of associations between **CPS voter registration** (survey-based) and **social media** volume/sentiment at the state level. **Turnout is not modeled** in the main pipeline.
 
-## Environment Setup
+---
 
-1. Create and activate a Python environment.
-2. Install required libraries:
+## How the pieces fit together (no duplicated work)
+
+| What you need | Where it lives | What it is *not* |
+|---------------|----------------|------------------|
+| Reproducible **state–year** merge, VADER sentiment, correlations, clustering, sklearn regression | **`scripts/combined_analysis.py`** | Not the same grain as the exploratory notebook (see below). |
+| **State-only**, **2020** slice, **split** Biden vs Trump volume & **absolute** translated sentiment, **statsmodels OLS**, extra plots (actual vs predicted, coef bars, heatmaps) | **`notebooks/multiple_linreg.ipynb`** | Different features, merge key (state only), and estimator than the script. |
+
+Running the script does **not** replace re-running the notebook for *that* workflow, and vice versa. For a class report, cite **one canonical table** per research question or clearly label “state–year VADER panel” vs “state-only 2020 OLS panel.”
+
+---
+
+## Environment setup
+
+From the project root, use a virtual environment and install:
 
 ```bash
-pip install pandas kagglehub vaderSentiment deep-translator langdetect
+pip install pandas matplotlib seaborn scikit-learn kagglehub vaderSentiment deep-translator langdetect
 ```
 
-## Data Setup
+Optional: `statsmodels` if you extend the notebook (`pip install statsmodels`).
 
-### Voter registration data (IPUMS CPS)
+---
 
-1. Download `abrv_voter_reg.dat` (the abbreviated CPS extract used in this project).
-2. Place it at:
-   - `data/raw/voter_registration/abrv_voter_reg.dat`
-3. Run:
+## Data setup
+
+### Voter registration (IPUMS CPS)
+
+1. Place `abrv_voter_reg.dat` at `data/raw/voter_registration/abrv_voter_reg.dat`
+2. Run:
 
 ```bash
 python "scripts/voter-reg.py"
 ```
 
-This script generates the cleaned individual response subset in:
-- `data/processed/voter_reg_individual_response_subset.csv`
+**Output:** `data/processed/voter_reg/voter_reg_individual_response_subset.csv`  
+(Registration indicator and demographics; **no turnout column**.)
 
-### Social media data (Kaggle)
-
-Run the pipeline in order:
+### Social media (Kaggle pipeline)
 
 ```bash
 python "scripts/download_data.py"
@@ -37,53 +49,66 @@ python "scripts/clean_data.py"
 python "scripts/preprocessing.py"
 ```
 
-## Combined Analysis Merge Details
+Preprocessed tweet CSVs: `data/processed/social_media/`.
 
-To run the first-step analysis pipeline:
+---
+
+## Combined analysis script (main quantitative pipeline)
 
 ```bash
 python "scripts/combined_analysis.py"
 ```
 
-This script merges voter and social data in three stages:
+This single run completes the **registration-only** task list that is *not* duplicated in the notebook:
 
-1. Build voter state-year table from `data/processed/voter_reg/voter_reg_individual_response_subset.csv`
-   - Group keys: `state`, `year`
-   - Aggregations:
-     - `registration_rate` = mean of `voter_registration`
-     - `turnout_rate` = mean of `voting_turnout`
-     - `n_voter_records` = count of voter rows
-   - Output: `data/processed/analysis/voter_state_year.csv`
+### 1) Merged analysis table
 
-2. Build social media state-year table from:
-   - `data/processed/social_media/biden_preprocessed.csv`
-   - `data/processed/social_media/trump_preprocessed.csv`
-   - Steps:
-     - Parse `created_at` to extract `year`
-     - Compute VADER sentiment compound score per tweet
-     - Concatenate both social datasets
-     - Group keys: `state`, `year`
-   - Aggregations:
-     - `tweet_volume` = count of tweets
-     - `mean_sentiment` = mean compound sentiment
-     - `sentiment_std` = standard deviation of compound sentiment
-   - Output: `data/processed/analysis/social_state_year.csv`
+- **Voter:** `state` × `year` → `registration_rate`, `n_voter_records`
+- **Social:** `state` × `year` → `tweet_volume`, `mean_sentiment`, `sentiment_std` (VADER compound on tweet text)
+- **Merge:** `inner` on `(state, year)` → `data/processed/analysis/merged_state_year.csv`  
+  Intersection years depend on tweet timestamps (often **2020-only** rows in the merge even when CPS has multiple years).
 
-3. Merge voter + social tables
-   - Join type: `inner`
-   - Join keys: `state`, `year`
-   - Output: `data/processed/analysis/merged_state_year.csv`
+Supporting files: `voter_state_year.csv`, `social_state_year.csv`.
 
-Notes:
-- `inner` join keeps only state-year pairs present in both tables.
-- Additional outputs from this script:
-  - `data/processed/analysis/correlation_pearson.csv`
-  - `data/processed/analysis/correlation_spearman.csv`
-  - `data/processed/analysis/linear_model_turnout_results.csv`
-  - figures in `reports/figures/combined_analysis/`
+### 2) Descriptive figures (`reports/figures/combined_analysis/`)
 
+| File | Description |
+|------|-------------|
+| `registration_rate_by_year.png` | Mean registration over **all CPS years** in the voter file (full voter panel, not limited by tweet years). |
+| `mean_sentiment_by_year.png` | Mean VADER sentiment by **calendar year** in the combined tweet files. |
+| `mean_sentiment_vs_registration_rate.png` | Scatter + trend on **merged** state–year rows. |
 
-## Datasets Used
+There is **no** turnout bar chart (turnout not in the CPS subset used here).
+
+### 3) Correlations
+
+- `correlation_pearson.csv`, `correlation_spearman.csv`  
+- Variables: `registration_rate`, `tweet_volume`, `mean_sentiment`, `sentiment_std`
+
+### 4) K-means clustering (fills gap vs. older task lists)
+
+- Features (standardized): **`tweet_volume`**, **`mean_sentiment`** on merged rows with non-null features.
+- Default **k = 3**; automatically reduced if fewer than 3 valid rows exist.
+- **`social_cluster`** column appended → `merged_state_year_with_clusters.csv`
+- Figures: `cluster_sizes.png`, `registration_rate_by_cluster.png` (mean **registration** by cluster, not turnout)
+
+### 5) Predictive model (simple baseline)
+
+- `linear_model_registration_results.csv`: **sklearn** `LinearRegression` for  
+  `registration_rate ~ tweet_volume + mean_sentiment` on merged rows (R², RMSE, coefficients).
+
+This is **distinct** from **`multiple_linreg.ipynb`**, which uses **statsmodels OLS** with **four** predictors (Biden/Trump volume and sentiment variants) on a **state-only, 2020** table.
+
+---
+
+## Notebooks (exploration & alternate specification)
+
+- **`notebooks/multiple_linreg.ipynb`** — state-level merge, 2020 CPS filter, candidate-specific social features, OLS, diagnostic plots (e.g. actual vs predicted, sentiment coefficient bars). **Titles in some cells may still say “turnout”; axes use registration where noted.**
+- **`notebooks/cooccurence_network.ipynb`**, **`notebooks/Kaggle_translation.ipynb`** — network / translation workflows; separate from the merged state–year script.
+
+---
+
+## Datasets used
 
 - [US Election 2024 Social Media Sentiment Dataset](https://www.kaggle.com/datasets/imaadmahmood/us-election-2024-social-media-sentiment-dataset?select=election_tweets.csv)
 - [US Election 2020 Tweets](https://www.kaggle.com/datasets/manchunhui/us-election-2020-tweets)
