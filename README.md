@@ -2,42 +2,6 @@
 
 This project analyzes potential relationships between U.S. voter behavior and social media activity.
 
-## Project Structure
-
-```text
-BigDataFinalProject/
-├── data/
-│   ├── raw/
-│   │   └── voter_registration/
-│   │       └── abrv_voter_reg.dat
-│   ├── processed/
-│   │   ├── voter_reg_individual_response_subset.csv
-│   │   ├── voter_registration_clean.csv
-│   │   └── social_media/
-│   │       ├── biden_preprocessed.csv
-│   │       └── trump_preprocessed.csv
-│   └── translated/
-│       └── social_media/
-│           ├── biden_translated.csv
-│           └── trump_translated.csv
-├── scripts/
-│   ├── voter-reg.py
-│   ├── download_data.py
-│   ├── clean_data.py
-│   └── preprocessing.py
-├── notebooks/
-│   ├── Kaggle_translation.ipynb
-│   ├── cooccurence_network.ipynb
-│   └── multiple_linreg.ipynb
-└── reports/
-    └── figures/
-        ├── actual_vs_predicted.png
-        ├── coefficient_impact.png
-        ├── scatter.png
-        ├── sentiment_impact_refined.png
-        └── state_heatmap.png
-```
-
 ## Environment Setup
 
 1. Create and activate a Python environment.
@@ -73,14 +37,51 @@ python "scripts/clean_data.py"
 python "scripts/preprocessing.py"
 ```
 
-## What Has Been Completed
+## Combined Analysis Merge Details
 
-- Project folder structure reorganized into `scripts`, `notebooks`, `reports/figures`, and `data` stages.
-- Voter registration raw file is placed under `data/raw/voter_registration/`.
-- Processed voter outputs are stored under `data/processed/`.
-- Preprocessed social media outputs are stored under `data/processed/social_media/`.
-- Translated social media outputs are stored under `data/translated/social_media/`.
-- Existing analysis notebooks and exported figures have been organized.
+To run the first-step analysis pipeline:
+
+```bash
+python "scripts/combined_analysis.py"
+```
+
+This script merges voter and social data in three stages:
+
+1. Build voter state-year table from `data/processed/voter_reg/voter_reg_individual_response_subset.csv`
+   - Group keys: `state`, `year`
+   - Aggregations:
+     - `registration_rate` = mean of `voter_registration`
+     - `turnout_rate` = mean of `voting_turnout`
+     - `n_voter_records` = count of voter rows
+   - Output: `data/processed/analysis/voter_state_year.csv`
+
+2. Build social media state-year table from:
+   - `data/processed/social_media/biden_preprocessed.csv`
+   - `data/processed/social_media/trump_preprocessed.csv`
+   - Steps:
+     - Parse `created_at` to extract `year`
+     - Compute VADER sentiment compound score per tweet
+     - Concatenate both social datasets
+     - Group keys: `state`, `year`
+   - Aggregations:
+     - `tweet_volume` = count of tweets
+     - `mean_sentiment` = mean compound sentiment
+     - `sentiment_std` = standard deviation of compound sentiment
+   - Output: `data/processed/analysis/social_state_year.csv`
+
+3. Merge voter + social tables
+   - Join type: `inner`
+   - Join keys: `state`, `year`
+   - Output: `data/processed/analysis/merged_state_year.csv`
+
+Notes:
+- `inner` join keeps only state-year pairs present in both tables.
+- Additional outputs from this script:
+  - `data/processed/analysis/correlation_pearson.csv`
+  - `data/processed/analysis/correlation_spearman.csv`
+  - `data/processed/analysis/linear_model_turnout_results.csv`
+  - figures in `reports/figures/combined_analysis/`
+
 
 ## Datasets Used
 
